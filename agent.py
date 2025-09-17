@@ -87,6 +87,7 @@ import chainlit as cl
 
 @cl.on_message
 async def handle_message(message):
+
     load_dotenv()
     mcp = MCPClient(server_url="http://127.0.0.1:5000")
     user_input = message.content.strip().lower()
@@ -118,6 +119,21 @@ async def handle_message(message):
         await cl.Message(content="Step 3: Analyzing user data with Ollama...").send()
         user_insights = analyze_users_with_ollama()
         results.append(f"User Insights:\n{user_insights}")
+        intent_detected = True
+
+    # Order details intent detection
+    if any(kw in user_input for kw in ["order", "orders", "order id", "fetch order", "list orders", "channel"]):
+        await cl.Message(content="Step 2: Fetching order details from SQLite MCP client...").send()
+        sqlite_client = MCPSQLiteClient()
+        order_details = sqlite_client.get_order_details(message.content)
+        await cl.Message(content="Step 3: Summarizing order details with Ollama...").send()
+        order_text = "\n".join([str(order) for order in order_details]) if isinstance(order_details, list) else str(order_details)
+        prompt = f"Summarize the following order details and provide insights, patterns, and recommendations:\n{order_text}"
+        response = ollama.chat(
+            model="mistral",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        results.append(f"Order Summary:\n{response['message']['content'].strip()}")
         intent_detected = True
 
     # If no known keywords, treat as custom prompt for Ollama
